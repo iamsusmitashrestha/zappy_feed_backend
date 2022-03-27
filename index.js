@@ -3,6 +3,7 @@ import mysql from "promise-mysql";
 import jwt from "jwt-then";
 import authMiddleware from "./middlewares/auth.js";
 
+//Creating Server
 const app = express();
 
 app.use(express.json());
@@ -205,7 +206,7 @@ app.post("/post/text", authMiddleware, async (req, res) => {
     } else {
       const result = await connection.query(
         "INSERT INTO posts(caption,image,created_at,user_id) VALUES(?,?,?,?)",
-        [req.body.caption, req.body.image, req.body.created_at, user_id]
+        [req.body.caption, req.body.image, Date.now(), user_id]
       );
       res.json({
         message: "Posted.",
@@ -241,7 +242,7 @@ app.post("/post/:id/comment", authMiddleware, async (req, res) => {
     } else {
       const result = await connection.query(
         "INSERT INTO comments(caption,date,user_id,post_id) VALUES(?,?,?,?)",
-        [req.body.caption, req.body.date, user_id, post_id]
+        [req.body.caption, Date.now(), user_id, post_id]
       );
       res.json({
         message: "Commented.",
@@ -260,6 +261,8 @@ app.post("/post/:id/comment", authMiddleware, async (req, res) => {
 });
 
 app.get("/recentposts", authMiddleware, async (req, res) => {
+  const user_id = req.payload.id;
+  const post_id = req.params.id;
   //create connection
   let connection;
 
@@ -271,7 +274,8 @@ app.get("/recentposts", authMiddleware, async (req, res) => {
       database: "zappy_feed",
     });
     const results = await connection.query(
-      "SELECT * FROM `posts` ORDER BY(posts.id) DESC LIMIT 10"
+      "SELECT posts.id,posts.caption,posts.image,posts.created_at,users.name,users.id(SELECT COUNT(*)  FROM likes WHERE post_id=posts.id) AS like_count, (SELECT COUNT(*) FROM likes WHERE post_id=posts.id AND user_id=?) AS is_liked FROM `posts` INNER JOIN `users` ON users.id=posts.user_id",
+      [user_id]
     );
 
     if (results.length === 0) {
@@ -325,6 +329,51 @@ app.get("/posts/:post_id/viewcomment", authMiddleware, async (req, res) => {
   } catch (err) {
     console.log(err);
 
+    res.status(500).json({
+      message: "Internal server error.",
+    });
+  } finally {
+    if (connection) {
+      connection.end();
+    }
+  }
+});
+
+app.post("/post/:id/like", authMiddleware, async (req, res) => {
+  const user_id = req.payload.id;
+  const post_id = req.params.id;
+
+  let connection;
+  try {
+    connection = await mysql.createConnection({
+      host: "localhost",
+      user: "root",
+      password: "",
+      database: "zappy_feed",
+    });
+
+    const results = await connection.query(
+      "SELECT  * from likes WHERE user_id=? and post_id=?",
+      [user_id, post_id]
+    );
+    console.log(results.user_id);
+
+    if (results.length > 0) {
+      const result = await connection.query(
+        " DELETE FROM likes WHERE user_id=? and post_id=? ",
+        [user_id, post_id]
+      );
+    } else {
+      const result = await connection.query(
+        "INSERT INTO likes(user_id,post_id) VALUES(?,?)",
+        [user_id, post_id]
+      );
+      res.json({
+        message: "Liked.",
+      });
+    }
+  } catch (error) {
+    console.log(error);
     res.status(500).json({
       message: "Internal server error.",
     });
