@@ -274,7 +274,7 @@ app.get("/recentposts", authMiddleware, async (req, res) => {
       database: "zappy_feed",
     });
     const results = await connection.query(
-      "SELECT posts.id,posts.caption,posts.image,posts.created_at,users.name,users.id(SELECT COUNT(*)  FROM likes WHERE post_id=posts.id) AS like_count, (SELECT COUNT(*) FROM likes WHERE post_id=posts.id AND user_id=?) AS is_liked FROM `posts` INNER JOIN `users` ON users.id=posts.user_id",
+      "SELECT posts.id,posts.caption,posts.image,posts.created_at,users.name,(SELECT COUNT(*)  FROM likes WHERE post_id=posts.id) AS like_count, (SELECT COUNT(*) FROM likes WHERE post_id=posts.id AND user_id=?) AS is_liked FROM `posts` INNER JOIN `users` ON users.id=posts.user_id",
       [user_id]
     );
 
