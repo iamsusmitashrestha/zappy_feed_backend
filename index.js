@@ -62,7 +62,7 @@ app.get("/profile/:id", authMiddleware, async (req, res) => {
       database: "zappy_feed",
     });
     const results = await connection.query(
-      "SELECT * FROM `posts` WHERE user_id=?",
+      "SELECT * ,(SELECT COUNT(*) FROM likes WHERE post_id=posts.id) AS like_count FROM `posts` WHERE user_id=?",
       [id]
     );
 
@@ -84,46 +84,6 @@ app.get("/profile/:id", authMiddleware, async (req, res) => {
     console.log(resultForName);
     res.json({
       ...resultForName, //removes outer curly bracket
-      posts: results,
-    });
-  } catch (err) {
-    console.log(err);
-
-    res.status(500).json({
-      message: "Internal server error.",
-    });
-  } finally {
-    if (connection) {
-      connection.end();
-    }
-  }
-});
-
-app.get("/profile/posts/:id", authMiddleware, async (req, res) => {
-  const id = req.params.id;
-
-  //create connection
-  let connection;
-
-  try {
-    connection = await mysql.createConnection({
-      host: "localhost",
-      user: "root",
-      password: "",
-      database: "zappy_feed",
-    });
-    const results = await connection.query(
-      "SELECT *,(SELECT COUNT(*) FROM likes WHERE post_id=?) AS like_count  FROM posts where posts.id=?",
-      [id, id]
-    );
-
-    const [resultForName] = await connection.query(
-      "SELECT name FROM users WHERE id=?",
-      [id]
-    );
-
-    res.json({
-      ...resultForName,
       posts: results,
     });
   } catch (err) {
