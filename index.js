@@ -48,6 +48,97 @@ app.get("/users/myprofile", authMiddleware, async (req, res) => {
   }
 });
 
+app.get("/profile/:id", authMiddleware, async (req, res) => {
+  const id = req.params.id;
+
+  //create connection
+  let connection;
+
+  try {
+    connection = await mysql.createConnection({
+      host: "localhost",
+      user: "root",
+      password: "",
+      database: "zappy_feed",
+    });
+    const results = await connection.query(
+      "SELECT * FROM `posts` WHERE user_id=?",
+      [id]
+    );
+
+    // const resultForName = await connection.query(
+    //   "SELECT name,email FROM users WHERE id=?",
+    //   [id]
+    // );
+
+    // res.json({
+    //   name: resultForName[0]["name"],
+    //   email: resultForName[0]["email"],
+    //   posts: results,
+    // });
+    const [resultForName] = await connection.query(
+      "SELECT name,email FROM users WHERE id=?",
+      [id]
+    );
+
+    console.log(resultForName);
+    res.json({
+      ...resultForName, //removes outer curly bracket
+      posts: results,
+    });
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      message: "Internal server error.",
+    });
+  } finally {
+    if (connection) {
+      connection.end();
+    }
+  }
+});
+
+app.get("/profile/posts/:id", authMiddleware, async (req, res) => {
+  const id = req.params.id;
+
+  //create connection
+  let connection;
+
+  try {
+    connection = await mysql.createConnection({
+      host: "localhost",
+      user: "root",
+      password: "",
+      database: "zappy_feed",
+    });
+    const results = await connection.query(
+      "SELECT *,(SELECT COUNT(*) FROM likes WHERE post_id=?) AS like_count  FROM posts where posts.id=?",
+      [id, id]
+    );
+
+    const [resultForName] = await connection.query(
+      "SELECT name FROM users WHERE id=?",
+      [id]
+    );
+
+    res.json({
+      ...resultForName,
+      posts: results,
+    });
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      message: "Internal server error.",
+    });
+  } finally {
+    if (connection) {
+      connection.end();
+    }
+  }
+});
+
 app.get("/users/:id", authMiddleware, async (req, res) => {
   const id = req.params.id;
 
@@ -84,13 +175,6 @@ app.get("/users/:id", authMiddleware, async (req, res) => {
       connection.end();
     }
   }
-});
-
-app.get("/greet/:name", async (req, res) => {
-  const name = req.params.name;
-  res.json({
-    greeting: "Good morning " + name,
-  });
 });
 
 app.post("/users/register", async (req, res) => {
@@ -273,20 +357,20 @@ app.get("/recentposts", authMiddleware, async (req, res) => {
       password: "",
       database: "zappy_feed",
     });
-    const results = await connection.query(
-      "SELECT posts.id,posts.caption,posts.image,posts.created_at,users.name,(SELECT COUNT(*)  FROM likes WHERE post_id=posts.id) AS like_count, (SELECT COUNT(*) FROM likes WHERE post_id=posts.id AND user_id=?) AS is_liked FROM `posts` INNER JOIN `users` ON users.id=posts.user_id",
+
+    let results = await connection.query(
+      "SELECT posts.*,users.name,(SELECT COUNT(*)  FROM likes WHERE post_id=posts.id) AS like_count, (SELECT COUNT(*) FROM likes WHERE post_id=posts.id AND user_id=?) AS is_liked FROM `posts` INNER JOIN `users` ON users.id=posts.user_id",
       [user_id]
     );
-
-    if (results.length === 0) {
-      res.status(404).json({
-        message: "Posts not found.",
-      });
-    } else {
-      res.json({
-        posts: results,
-      });
-    }
+    results = results.map((item) => {
+      return {
+        ...item,
+        is_liked: item.is_liked == 1 ? true : false,
+      };
+    });
+    res.json({
+      posts: results,
+    });
   } catch (err) {
     console.log(err);
 
@@ -356,13 +440,15 @@ app.post("/post/:id/like", authMiddleware, async (req, res) => {
       "SELECT  * from likes WHERE user_id=? and post_id=?",
       [user_id, post_id]
     );
-    console.log(results.user_id);
 
     if (results.length > 0) {
       const result = await connection.query(
-        " DELETE FROM likes WHERE user_id=? and post_id=? ",
+        "DELETE FROM likes WHERE user_id=? and post_id=?",
         [user_id, post_id]
       );
+      res.json({
+        message: "Unliked",
+      });
     } else {
       const result = await connection.query(
         "INSERT INTO likes(user_id,post_id) VALUES(?,?)",
