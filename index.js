@@ -81,9 +81,14 @@ app.get("/profile/:id", authMiddleware, async (req, res) => {
       [id]
     );
 
-    console.log(resultForName);
+    const [resultsForFollow] = await connection.query(
+      "SELECT id ,(SELECT COUNT(followedUserId) FROM follows WHERE followedUserId=?)AS followers,(SELECT COUNT(followerUserId) FROM follows WHERE followerUserId=?)AS following FROM `users` WHERE id=?",
+      [id, id, id]
+    );
+
     res.json({
-      ...resultForName, //removes outer curly bracket
+      ...resultForName,
+      ...resultsForFollow, //removes outer curly bracket
       posts: results,
     });
   } catch (err) {
@@ -416,6 +421,53 @@ app.post("/post/:id/like", authMiddleware, async (req, res) => {
       );
       res.json({
         message: "Liked.",
+      });
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      message: "Internal server error.",
+    });
+  } finally {
+    if (connection) {
+      connection.end();
+    }
+  }
+});
+
+app.post("/user/:id/follow", authMiddleware, async (req, res) => {
+  const followedUserId = req.params.id;
+  const followerUserId = req.payload.id;
+
+  let connection;
+  try {
+    connection = await mysql.createConnection({
+      host: "localhost",
+      user: "root",
+      password: "",
+      database: "zappy_feed",
+    });
+
+    const results = await connection.query(
+      "SELECT  * from follows WHERE followedUserId=? and followerUserId=?",
+      [followedUserId, followerUserId]
+    );
+
+    if (results.length > 0) {
+      const result = await connection.query(
+        "DELETE FROM follows WHERE followerUserId=? and followedUserId=?",
+        [followerUserId, followedUserId]
+      );
+      res.json({
+        message: "Unfollowed",
+      });
+    } else {
+      const result = await connection.query(
+        "INSERT INTO follows(followedUserId,followerUserId) VALUES(?,?)",
+        [followedUserId, followerUserId]
+      );
+      res.json({
+        message: "Followed.",
       });
     }
   } catch (error) {
